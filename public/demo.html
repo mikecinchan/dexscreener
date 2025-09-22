@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DexScreener Agent Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .search-section {
+            padding: 40px;
+            text-align: center;
+        }
+
+        .search-box {
+            display: flex;
+            max-width: 500px;
+            margin: 0 auto 30px;
+            gap: 10px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            border-color: #4facfe;
+        }
+
+        .search-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .search-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .search-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            padding: 0 40px 40px;
+        }
+
+        .token-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-left: 5px solid #4facfe;
+        }
+
+        .token-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .token-logo {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 15px;
+        }
+
+        .token-name {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .token-symbol {
+            color: #666;
+            margin-left: 10px;
+        }
+
+        .token-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat {
+            text-align: center;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .positive {
+            color: #27ae60;
+        }
+
+        .negative {
+            color: #e74c3c;
+        }
+
+        .chain-badge {
+            display: inline-block;
+            background: #4facfe;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-right: 10px;
+        }
+
+        .error {
+            background: #ffe6e6;
+            border-left-color: #e74c3c;
+            color: #c0392b;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 DexScreener Agent</h1>
+            <p>Search for cryptocurrency tokens and get real-time market data</p>
+        </div>
+
+        <div class="search-section">
+            <div class="search-box">
+                <input
+                    type="text"
+                    id="tokenInput"
+                    class="search-input"
+                    placeholder="Enter token name (e.g., PEPE, ETH, DOGE)"
+                    onkeypress="handleKeyPress(event)"
+                >
+                <button id="searchBtn" class="search-btn" onclick="searchToken()">
+                    Search
+                </button>
+            </div>
+
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Searching for token data...</p>
+            </div>
+        </div>
+
+        <div id="results" class="results"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3001';
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                searchToken();
+            }
+        }
+
+        async function searchToken() {
+            const tokenInput = document.getElementById('tokenInput');
+            const searchBtn = document.getElementById('searchBtn');
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+
+            const query = tokenInput.value.trim();
+            if (!query) {
+                alert('Please enter a token name');
+                return;
+            }
+
+            // Show loading state
+            searchBtn.disabled = true;
+            searchBtn.textContent = 'Searching...';
+            loading.style.display = 'block';
+            results.innerHTML = '';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/tools/dexscreener-search?q=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayResults(data);
+                } else {
+                    throw new Error(data.error || 'Search failed');
+                }
+            } catch (error) {
+                displayError(error.message);
+            } finally {
+                // Hide loading state
+                searchBtn.disabled = false;
+                searchBtn.textContent = 'Search';
+                loading.style.display = 'none';
+            }
+        }
+
+        function displayResults(data) {
+            const results = document.getElementById('results');
+
+            if (!data.pairs || data.pairs.length === 0) {
+                results.innerHTML = `
+                    <div class="no-results">
+                        <h3>No tokens found</h3>
+                        <p>Try searching for a different token name</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Show top 5 results
+            const topPairs = data.pairs.slice(0, 5);
+            const html = topPairs.map(pair => createTokenCard(pair)).join('');
+            results.innerHTML = html;
+        }
+
+        function createTokenCard(pair) {
+            const priceChange24h = pair.priceChange?.h24 || 0;
+            const priceChangeClass = priceChange24h >= 0 ? 'positive' : 'negative';
+            const priceChangeSymbol = priceChange24h >= 0 ? '+' : '';
+
+            return `
+                <div class="token-card">
+                    <div class="token-header">
+                        ${pair.info?.imageUrl ? `<img src="${pair.info.imageUrl}" alt="${pair.baseToken.symbol}" class="token-logo">` : ''}
+                        <div>
+                            <div class="token-name">${pair.baseToken.name}</div>
+                            <div class="token-symbol">
+                                <span class="chain-badge">${pair.chainId.toUpperCase()}</span>
+                                ${pair.baseToken.symbol}/${pair.quoteToken.symbol}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="token-stats">
+                        <div class="stat">
+                            <div class="stat-label">Price (USD)</div>
+                            <div class="stat-value">$${formatNumber(pair.priceUsd)}</div>
+                        </div>
+
+                        <div class="stat">
+                            <div class="stat-label">24h Change</div>
+                            <div class="stat-value ${priceChangeClass}">
+                                ${priceChangeSymbol}${formatNumber(priceChange24h)}%
+                            </div>
+                        </div>
+
+                        <div class="stat">
+                            <div class="stat-label">24h Volume</div>
+                            <div class="stat-value">$${formatNumber(pair.volume?.h24 || 0)}</div>
+                        </div>
+
+                        <div class="stat">
+                            <div class="stat-label">Liquidity</div>
+                            <div class="stat-value">$${formatNumber(pair.liquidity?.usd || 0)}</div>
+                        </div>
+
+                        <div class="stat">
+                            <div class="stat-label">Market Cap</div>
+                            <div class="stat-value">$${formatNumber(pair.marketCap || 0)}</div>
+                        </div>
+
+                        <div class="stat">
+                            <div class="stat-label">DEX</div>
+                            <div class="stat-value">${pair.dexId}</div>
+                        </div>
+                    </div>
+
+                    ${pair.url ? `<p style="margin-top: 15px;"><a href="${pair.url}" target="_blank" style="color: #4facfe; text-decoration: none;">View on DexScreener →</a></p>` : ''}
+                </div>
+            `;
+        }
+
+        function displayError(message) {
+            const results = document.getElementById('results');
+            results.innerHTML = `
+                <div class="token-card error">
+                    <h3>Error</h3>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        function formatNumber(num) {
+            // Convert to number and handle invalid cases
+            const n = parseFloat(num);
+            if (isNaN(n) || num === null || num === undefined) return '0';
+            if (n === 0) return '0';
+            if (n < 0.000001) return n.toExponential(2);
+            if (n < 0.01) return n.toFixed(6);
+            if (n < 1) return n.toFixed(4);
+            if (n < 1000) return n.toFixed(2);
+            if (n < 1000000) return (n / 1000).toFixed(1) + 'K';
+            if (n < 1000000000) return (n / 1000000).toFixed(1) + 'M';
+            return (n / 1000000000).toFixed(1) + 'B';
+        }
+
+        // Load example on page load
+        window.addEventListener('load', () => {
+            document.getElementById('tokenInput').value = 'PEPE';
+        });
+    </script>
+</body>
+</html>
